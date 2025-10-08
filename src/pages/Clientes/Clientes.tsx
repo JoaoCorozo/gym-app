@@ -3,8 +3,8 @@ import { useClientes } from './useClientes';
 export default function Clientes() {
   const { data, isLoading, isError } = useClientes();
 
-  if (isLoading) return <div style={{padding:24}}>Cargando clientes...</div>;
-  if (isError)   return <div style={{padding:24, color:'crimson'}}>Error al cargar clientes</div>;
+  if (isLoading) return <div style={{ padding: 24 }}>Cargando clientes…</div>;
+  if (isError)   return <div style={{ padding: 24, color: 'crimson' }}>Error al cargar clientes</div>;
 
   return (
     <div style={{ padding: 24 }}>
@@ -12,11 +12,7 @@ export default function Clientes() {
       <table border={1} cellPadding={6} cellSpacing={0}>
         <thead>
           <tr>
-            <th>ID</th>
-            <th>Nombre</th>
-            <th>Correo</th>
-            <th>Teléfono</th>
-            <th>Estado</th>
+            <th>ID</th><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Estado</th>
           </tr>
         </thead>
         <tbody>

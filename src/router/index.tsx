@@ -1,17 +1,19 @@
 import { createBrowserRouter } from 'react-router-dom';
-import Guard from '../auth/Guard';
-import Login from '../pages/Login/Login';
-import Dashboard from '../pages/Dashboard/Dashboard';
 import Clientes from '../pages/Clientes/Clientes';
 
+function Home() {
+  return (
+    <div style={{ padding: 24 }}>
+      <h1>Home</h1>
+      <a href="/clientes">Ir a Clientes</a>
+    </div>
+  );
+}
+
 export const router = createBrowserRouter([
-  { path: '/login', element: <Login /> },
-  {
-    path: '/',
-    element: <Guard />,
-    children: [
-      { index: true, element: <Dashboard /> },
-      { path: 'clientes', element: <Clientes /> }
-    ],
-  },
+  { path: '/', element: <Home /> },
+  { path: '/clientes', element: <Clientes /> }, // ojo: minúsculas
 ]);
+
+export default router;
+
