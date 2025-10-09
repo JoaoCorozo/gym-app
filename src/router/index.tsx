@@ -1,19 +1,25 @@
 import { createBrowserRouter } from 'react-router-dom';
+import Guard from '../auth/Guard';
+import Layout from '../components/Layout';
+import Home from '../pages/Home/Home';
 import Clientes from '../pages/Clientes/Clientes';
+import Login from '../pages/Login/Login';
 
-function Home() {
-  return (
-    <div style={{ padding: 24 }}>
-      <h1>Home</h1>
-      <a href="/clientes">Ir a Clientes</a>
-    </div>
-  );
-}
-
-export const router = createBrowserRouter([
-  { path: '/', element: <Home /> },
-  { path: '/clientes', element: <Clientes /> }, // ojo: minúsculas
+const router = createBrowserRouter([
+  { path: '/login', element: <Login /> },
+  {
+    path: '/',
+    element: <Guard />,              // protege todo lo de adentro
+    children: [
+      {
+        element: <Layout />,         // navbar + outlet
+        children: [
+          { index: true, element: <Home /> },
+          { path: 'clientes', element: <Clientes /> },
+        ],
+      },
+    ],
+  },
 ]);
 
 export default router;
-
