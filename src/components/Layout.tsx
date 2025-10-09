@@ -1,14 +1,9 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { tokenStorage, userStorage } from '../utils/storage';
+import { useAuth } from '../auth/AuthContext';
 
 export default function Layout() {
   const loc = useLocation();
-  const user = userStorage.get();
-
-  const logout = () => {
-    tokenStorage.clear();
-    window.location.href = '/login';
-  };
+  const { user, logout } = useAuth();
 
   const linkStyle = (path: string) => ({
     padding: '8px 12px',
@@ -20,21 +15,21 @@ export default function Layout() {
 
   return (
     <div>
-      <header style={{
-        display:'flex', gap:12, alignItems:'center',
-        padding:'12px 16px', borderBottom:'1px solid #eee'
-      }}>
+      <header style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid #eee' }}>
         <strong>Gym App</strong>
-        <nav style={{ display:'flex', gap:8 }}>
+        <nav style={{ display: 'flex', gap: 8 }}>
           <Link to="/" style={linkStyle('/')}>Home</Link>
           <Link to="/clientes" style={linkStyle('/clientes')}>Clientes</Link>
           <Link to="/planes" style={linkStyle('/planes')}>Planes</Link>
           <Link to="/suscripciones" style={linkStyle('/suscripciones')}>Suscripciones</Link>
+          {user?.roles.includes('admin') && (
+            <Link to="/admin" style={linkStyle('/admin')}>Admin</Link>
+          )}
         </nav>
-        <div style={{ marginLeft:'auto', fontSize:14 }}>
+        <div style={{ marginLeft: 'auto', fontSize: 14 }}>
           {user && (
-            <span style={{ marginRight:12 }}>
-              {user.email} ({user.role})
+            <span style={{ marginRight: 12 }}>
+              {user.email} ({user.roles.join(', ')})
             </span>
           )}
           <button onClick={logout}>Cerrar sesión</button>
