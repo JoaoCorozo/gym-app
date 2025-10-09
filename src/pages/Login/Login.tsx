@@ -1,15 +1,31 @@
 import { useState } from 'react';
-import { tokenStorage } from '../../utils/storage';
+import { tokenStorage, userStorage } from '../../utils/storage';
 
 export default function Login() {
-  const [email, setEmail] = useState('demo@gym.com');
-  const [password, setPassword] = useState('demo');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulación de login: guardamos un token fijo
-    tokenStorage.set('demo-token');
-    window.location.href = '/';
+
+    // 🔐 credenciales simuladas
+    if (email === 'admin@gym.com' && password === 'admin123') {
+      const user = { email, role: 'admin', token: 'admin-token' };
+      tokenStorage.set(user.token);
+      userStorage.set(user);
+      window.location.href = '/admin';
+      return;
+    }
+    if (email === 'usuario@gym.com' && password === 'user123') {
+      const user = { email, role: 'user', token: 'user-token' };
+      tokenStorage.set(user.token);
+      userStorage.set(user);
+      window.location.href = '/';
+      return;
+    }
+
+    setError('Credenciales inválidas');
   };
 
   return (
@@ -19,6 +35,11 @@ export default function Login() {
         <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" />
         <input value={password} type="password" onChange={e=>setPassword(e.target.value)} placeholder="Password" />
         <button type="submit">Entrar</button>
+        {error && <small style={{ color:'crimson' }}>{error}</small>}
+        <div style={{ fontSize:12, color:'#555' }}>
+          admin@gym.com / admin123<br/>
+          usuario@gym.com / user123
+        </div>
       </form>
     </div>
   );

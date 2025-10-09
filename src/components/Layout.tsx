@@ -1,8 +1,9 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { tokenStorage } from '../utils/storage';
+import { tokenStorage, userStorage } from '../utils/storage';
 
 export default function Layout() {
   const loc = useLocation();
+  const user = userStorage.get();
 
   const logout = () => {
     tokenStorage.clear();
@@ -27,8 +28,15 @@ export default function Layout() {
         <nav style={{ display:'flex', gap:8 }}>
           <Link to="/" style={linkStyle('/')}>Home</Link>
           <Link to="/clientes" style={linkStyle('/clientes')}>Clientes</Link>
+          <Link to="/planes" style={linkStyle('/planes')}>Planes</Link>
+          <Link to="/suscripciones" style={linkStyle('/suscripciones')}>Suscripciones</Link>
         </nav>
-        <div style={{ marginLeft:'auto' }}>
+        <div style={{ marginLeft:'auto', fontSize:14 }}>
+          {user && (
+            <span style={{ marginRight:12 }}>
+              {user.email} ({user.role})
+            </span>
+          )}
           <button onClick={logout}>Cerrar sesión</button>
         </div>
       </header>
