@@ -1,19 +1,45 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{ts,tsx,js,jsx}"
-  ],
+  content: ["./index.html","./src/**/*.{ts,tsx,js,jsx}"],
   theme: {
     extend: {
       colors: {
-        brand: {
-          50:"#ecfff6",100:"#d5ffec",200:"#aaf7d3",300:"#79eab8",400:"#40d895",
-          500:"#12bf78",600:"#0b9c61",700:"#0a7a4f",800:"#075d3e",900:"#064b33",
-        }
+        // Paleta principal BodyForge (naranja)
+        forge: {
+          50:  "#fff7f0",
+          100: "#ffead6",
+          200: "#ffd2ad",
+          300: "#ffb97f",
+          400: "#ff9d4d",
+          500: "#ff7f0e", // principal
+          600: "#e56f06",
+          700: "#bf5d07",
+          800: "#984809",
+          900: "#6b3407",
+        },
+        // Grises neutros para UI clara
+        neutral: {
+          50:"#f8fafb",
+          100:"#f1f5f7",
+          200:"#e5eaef",
+          300:"#d5dbe3",
+          400:"#b9c1cd",
+          500:"#98a0ad",
+          600:"#788090",
+          700:"#586173",
+          800:"#3e4657",
+          900:"#222838",
+        },
       },
-      boxShadow: { soft: "0 2px 10px rgba(0,0,0,.06)" },
-      borderRadius: { xl2: "1rem" },
+      boxShadow: {
+        soft: "0 6px 20px rgba(17, 24, 39, 0.08)",
+      },
+      borderRadius: {
+        xl2: "1rem",
+      },
+      backgroundImage: {
+        'hero-forge': 'linear-gradient(90deg, #fff2e6 0%, #ffe7d3 50%, #ffd8b7 100%)',
+      }
     },
   },
   plugins: [],

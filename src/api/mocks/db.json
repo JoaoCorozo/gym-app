@@ -3,19 +3,10 @@
     {
       "id": "0a4c",
       "nombre": "Joao Corozo",
-      "correo": "joao@gmail.com",
+      "correo": "joao.corozo@gmail.com",
       "telefono": "949119070",
       "planId": 1,
       "estadoMembresia": "vencida",
-      "fechaInscripcion": "2025-10-09"
-    },
-    {
-      "id": "386f",
-      "nombre": "Diego Garay",
-      "correo": "diego@mail.cl",
-      "telefono": "56145",
-      "planId": 2,
-      "estadoMembresia": "activa",
       "fechaInscripcion": "2025-10-09"
     }
   ],
