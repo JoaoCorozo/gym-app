@@ -4,18 +4,31 @@ import Spinner from '../../components/Spinner';
 import type { Cliente, Suscripcion, Plan } from '../../types/models';
 import { resumenKPI } from '../../selectors/membership';
 
+/** Convierte cualquier forma común de respuesta a un arreglo. */
+function asArray<T = any>(x: any): T[] {
+  if (Array.isArray(x)) return x as T[];
+  if (x?.items && Array.isArray(x.items)) return x.items as T[];
+  if (x?.data && Array.isArray(x.data)) return x.data as T[];
+  return [];
+}
+
 export default function AdminDashboard() {
   const clientesQ = useQuery({
     queryKey: ['clientes'],
-    queryFn: async () => (await api.get<Cliente[]>('/clientes')).data,
+    queryFn: async () =>
+      (await api.get<Cliente[] | { items: Cliente[] } | { data: Cliente[] }>('/clientes')).data,
   });
   const susQ = useQuery({
     queryKey: ['suscripciones'],
-    queryFn: async () => (await api.get<Suscripcion[]>('/suscripciones')).data,
+    queryFn: async () =>
+      (await api.get<Suscripcion[] | { items: Suscripcion[] } | { data: Suscripcion[] }>(
+        '/suscripciones'
+      )).data,
   });
   const planesQ = useQuery({
     queryKey: ['planes'],
-    queryFn: async () => (await api.get<Plan[]>('/planes')).data,
+    queryFn: async () =>
+      (await api.get<Plan[] | { items: Plan[] } | { data: Plan[] }>('/planes')).data,
   });
 
   if (clientesQ.isLoading || susQ.isLoading || planesQ.isLoading)
@@ -24,9 +37,9 @@ export default function AdminDashboard() {
   if (clientesQ.isError || susQ.isError || planesQ.isError)
     return <div className="p-6 text-rose-600">Error al cargar datos</div>;
 
-  const clientes = clientesQ.data ?? [];
-  const suscripciones = susQ.data ?? [];
-  const planes = planesQ.data ?? [];
+  const clientes = asArray<Cliente>(clientesQ.data);
+  const suscripciones = asArray<Suscripcion>(susQ.data);
+  const planes = asArray<Plan>(planesQ.data);
 
   const kpi = resumenKPI(clientes, suscripciones);
 
@@ -50,8 +63,10 @@ export default function AdminDashboard() {
         <div className="card p-5">
           <h3 className="font-semibold">Planes ({planes.length})</h3>
           <ul className="mt-2 text-sm text-neutral-700 list-disc pl-5">
-            {planes.slice(0,5).map(p => (
-              <li key={p.id}>{p.nombre} — ${p.precio} / {p.vigenciaDias} días</li>
+            {planes.slice(0, 5).map((p) => (
+              <li key={p.id}>
+                {p.nombre} — ${p.precio} / {p.vigenciaDias} días
+              </li>
             ))}
           </ul>
         </div>
@@ -61,10 +76,12 @@ export default function AdminDashboard() {
           <ul className="mt-2 text-sm text-neutral-700 list-disc pl-5">
             {suscripciones
               .slice()
-              .sort((a,b)=> b.id - a.id)
-              .slice(0,5)
-              .map(s => (
-                <li key={s.id}>#{s.id} — Cliente {s.clienteId} — Plan {s.planId}</li>
+              .sort((a, b) => b.id - a.id)
+              .slice(0, 5)
+              .map((s) => (
+                <li key={s.id}>
+                  #{s.id} — Cliente {s.clienteId} — Plan {s.planId}
+                </li>
               ))}
           </ul>
         </div>
@@ -82,7 +99,7 @@ export default function AdminDashboard() {
   );
 }
 
-function Stat({ title, value, accent }: { title: string; value: string|number; accent?: boolean }) {
+function Stat({ title, value, accent }: { title: string; value: string | number; accent?: boolean }) {
   return (
     <div className={`card p-4 ${accent ? 'bg-forge-50 border-forge-200' : ''}`}>
       <div className="text-sm text-neutral-600">{title}</div>

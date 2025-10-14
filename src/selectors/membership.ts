@@ -3,13 +3,24 @@ import { todayISO, daysBetween } from '../utils/date';
 
 export type EstadoCalc = 'activa' | 'por_vencer' | 'vencida';
 
+/** Convierte cualquier entrada posible en un arreglo de Suscripcion. */
+function normalizeSubs(input: unknown): Suscripcion[] {
+  if (Array.isArray(input)) return input;
+  if (input && typeof input === 'object') {
+    const anyObj = input as any;
+    if (Array.isArray(anyObj.items)) return anyObj.items as Suscripcion[];
+    if (Array.isArray(anyObj.data)) return anyObj.data as Suscripcion[];
+  }
+  return [];
+}
+
 export function estadoMembresiaDeCliente(
   clienteId: number,
-  suscripciones: Suscripcion[]
+  suscripcionesInput: unknown
 ): { estado: EstadoCalc; venceEnDias?: number; vencimiento?: string } {
-  const hoy = todayISO();
+  const suscripciones = normalizeSubs(suscripcionesInput);
 
-  // Buscamos la suscripción más reciente
+  const hoy = todayISO();
   const sub = suscripciones
     .filter((s) => s.clienteId === clienteId)
     .sort((a, b) => a.fechaInicio.localeCompare(b.fechaInicio))
@@ -25,10 +36,11 @@ export function estadoMembresiaDeCliente(
   return { estado: 'activa', venceEnDias: venceEn, vencimiento: sub.fechaVencimiento };
 }
 
-export function resumenKPI(clientes: Cliente[], suscripciones: Suscripcion[]) {
-  let activas = 0,
-    porVencer = 0,
-    vencidas = 0;
+export function resumenKPI(clientesInput: unknown, suscripcionesInput: unknown) {
+  const clientes = Array.isArray(clientesInput) ? (clientesInput as Cliente[]) : [];
+  const suscripciones = normalizeSubs(suscripcionesInput);
+
+  let activas = 0, porVencer = 0, vencidas = 0;
   for (const c of clientes) {
     const { estado } = estadoMembresiaDeCliente(c.id, suscripciones);
     if (estado === 'activa') activas++;
@@ -40,8 +52,6 @@ export function resumenKPI(clientes: Cliente[], suscripciones: Suscripcion[]) {
     activas,
     porVencer,
     vencidas,
-    activosPct: clientes.length
-      ? Math.round((activas / clientes.length) * 100)
-      : 0,
+    activosPct: clientes.length ? Math.round((activas / clientes.length) * 100) : 0,
   };
 }

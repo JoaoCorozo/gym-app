@@ -13,9 +13,24 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import StatsBar from '../../components/StatsBar';
 import ClienteFormModal from './ClienteFormModal';
 
-type EditRow = { id: number; nombre: string; correo: string; telefono?: string; estadoMembresia: string };
+/** Normaliza cualquier forma de respuesta a array */
+function asArray<T = any>(x: any): T[] {
+  if (Array.isArray(x)) return x as T[];
+  if (x?.items && Array.isArray(x.items)) return x.items as T[];
+  if (x?.data && Array.isArray(x.data)) return x.data as T[];
+  return [];
+}
+
+type EditRow = {
+  id: number;
+  nombre: string;
+  correo: string;
+  telefono?: string;
+  estadoMembresia: string;
+};
 
 export default function Clientes() {
+  // 🪝 TODOS los hooks se declaran SIEMPRE y en el mismo orden.
   const { data, isLoading, isError } = useClientes();
   const del = useDeleteCliente();
   const upd = useUpdateCliente();
@@ -23,7 +38,10 @@ export default function Clientes() {
 
   const subsQ = useQuery({
     queryKey: ['suscripciones'],
-    queryFn: async () => (await api.get<Suscripcion[]>('/suscripciones')).data,
+    queryFn: async () =>
+      (await api.get<Suscripcion[] | { items: Suscripcion[] } | { data: Suscripcion[] }>(
+        '/suscripciones'
+      )).data,
   });
 
   const [editing, setEditing] = useState<EditRow | null>(null);
@@ -35,57 +53,86 @@ export default function Clientes() {
 
   const [openNew, setOpenNew] = useState(false);
 
-  const isRow = (id: number) => editing?.id === id;
+  // 🔒 Datos normalizados SIEMPRE (evita excepciones en mitad del render).
+  const clientes = useMemo<Cliente[]>(() => asArray<Cliente>(data), [data]);
+  const suscripciones = useMemo<Suscripcion[]>(
+    () => asArray<Suscripcion>(subsQ.data),
+    [subsQ.data]
+  );
 
-  if (isLoading || subsQ.isLoading)
-    return <div className="p-6"><Spinner label="Cargando clientes..." /></div>;
-
-  if (isError || subsQ.isError)
-    return <div className="p-6 text-rose-600">Error al cargar clientes</div>;
-
-  const clientes = (data ?? []) as Cliente[];
-  const suscripciones = subsQ.data ?? [];
-
-  const kpi = resumenKPI(clientes, suscripciones);
+  // KPIs y enriquecimiento siempre calculados vía useMemo (sin lanzar).
+  const kpi = useMemo(() => resumenKPI(clientes, suscripciones), [clientes, suscripciones]);
 
   const clientesEnriquecidos = useMemo(() => {
-    return clientes.map(c => {
-      const e = estadoMembresiaDeCliente(c.id, suscripciones);
-      return { ...c, _estado: e.estado, _vencimiento: e.vencimiento };
-    });
+    try {
+      return clientes.map((c) => {
+        const e = estadoMembresiaDeCliente(c.id, suscripciones);
+        return { ...c, _estado: e.estado, _vencimiento: e.vencimiento };
+      });
+    } catch {
+      // Ante cualquier cosa rara en datos, no romper el orden de hooks
+      return clientes.map((c) => ({ ...c, _estado: 'vencida' as const }));
+    }
   }, [clientes, suscripciones]);
 
   const filtrados = useMemo(() => {
     const qnorm = q.trim().toLowerCase();
-    return clientesEnriquecidos.filter(c => {
-      const matchQ = qnorm.length === 0 ||
-        c.nombre.toLowerCase().includes(qnorm) ||
-        c.correo.toLowerCase().includes(qnorm) ||
-        (c.telefono ?? '').toLowerCase().includes(qnorm);
+    return clientesEnriquecidos.filter((c: any) => {
+      const matchQ =
+        qnorm.length === 0 ||
+        c.nombre?.toLowerCase?.().includes(qnorm) ||
+        c.correo?.toLowerCase?.().includes(qnorm) ||
+        (c.telefono ?? '').toLowerCase?.().includes(qnorm);
       const matchEstado = estado === 'todos' || c._estado === estado;
       return matchQ && matchEstado;
     });
   }, [clientesEnriquecidos, q, estado]);
+
+  // 🧪 Loading / Error se devuelven DESPUÉS de declarar hooks
+  if (isLoading || subsQ.isLoading) {
+    return (
+      <div className="p-6">
+        <Spinner label="Cargando clientes..." />
+      </div>
+    );
+  }
+  if (isError || subsQ.isError) {
+    return <div className="p-6 text-rose-600">Error al cargar clientes</div>;
+  }
+
+  const isRow = (id: number) => editing?.id === id;
 
   return (
     <div className="space-y-4">
       {/* Título + acciones */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Clientes</h1>
-        {isAdmin && <button className="btn" onClick={()=>setOpenNew(true)}>Nuevo</button>}
+        {isAdmin && (
+          <button className="btn" onClick={() => setOpenNew(true)}>
+            Nuevo
+          </button>
+        )}
       </div>
 
       {/* KPIs */}
-      <StatsBar items={[
-        { label: 'Total', value: kpi.total },
-        { label: 'Activos', value: kpi.activas },
-        { label: 'Por vencer', value: kpi.porVencer },
-        { label: 'Vencidos', value: kpi.vencidas },
-        { label: '% Activos', value: `${kpi.activosPct}%` },
-      ]} />
+      <StatsBar
+        items={[
+          { label: 'Total', value: kpi.total },
+          { label: 'Activos', value: kpi.activas },
+          { label: 'Por vencer', value: kpi.porVencer },
+          { label: 'Vencidos', value: kpi.vencidas },
+          { label: '% Activos', value: `${kpi.activosPct}%` },
+        ]}
+      />
 
       {/* Búsqueda + filtro */}
-      <SearchBar q={q} onQ={setQ} estado={estado} onEstado={setEstado} placeholder="Buscar por nombre, correo o teléfono…" />
+      <SearchBar
+        q={q}
+        onQ={setQ}
+        estado={estado}
+        onEstado={setEstado}
+        placeholder="Buscar por nombre, correo o teléfono…"
+      />
 
       {/* Tabla */}
       {filtrados.length === 0 ? (
@@ -104,7 +151,7 @@ export default function Clientes() {
               </tr>
             </thead>
             <tbody className="[&>tr:nth-child(odd)]:bg-neutral-50 [&>tr:hover]:bg-forge-50/60">
-              {filtrados.map((c) => (
+              {filtrados.map((c: any) => (
                 <tr key={c.id}>
                   <td>{c.id}</td>
 
@@ -115,7 +162,9 @@ export default function Clientes() {
                         value={editing!.nombre}
                         onChange={(ev) => setEditing({ ...editing!, nombre: ev.target.value })}
                       />
-                    ) : c.nombre}
+                    ) : (
+                      c.nombre
+                    )}
                   </td>
 
                   <td>
@@ -125,7 +174,9 @@ export default function Clientes() {
                         value={editing!.correo}
                         onChange={(ev) => setEditing({ ...editing!, correo: ev.target.value })}
                       />
-                    ) : c.correo}
+                    ) : (
+                      c.correo
+                    )}
                   </td>
 
                   <td>
@@ -135,12 +186,14 @@ export default function Clientes() {
                         value={editing!.telefono ?? ''}
                         onChange={(ev) => setEditing({ ...editing!, telefono: ev.target.value })}
                       />
-                    ) : (c.telefono ?? '-')}
+                    ) : (
+                      c.telefono ?? '-'
+                    )}
                   </td>
 
                   <td>
                     <Badge kind={(c._estado as any) ?? 'default'}>
-                      {(c._estado as string).replace('_',' ')}
+                      {(c._estado as string)?.replace?.('_', ' ')}
                     </Badge>
                     {c._vencimiento && (
                       <span className="ml-2 text-xs text-neutral-500">({c._vencimiento})</span>
@@ -154,13 +207,15 @@ export default function Clientes() {
                           <button
                             className="btn"
                             onClick={() =>
-                              upd.mutateAsync({
-                                id: editing!.id,
-                                nombre: editing!.nombre,
-                                correo: editing!.correo,
-                                telefono: editing!.telefono,
-                                estadoMembresia: editing!.estadoMembresia as any,
-                              }).then(()=> setEditing(null))
+                              upd
+                                .mutateAsync({
+                                  id: editing!.id,
+                                  nombre: editing!.nombre,
+                                  correo: editing!.correo,
+                                  telefono: editing!.telefono,
+                                  estadoMembresia: editing!.estadoMembresia as any,
+                                })
+                                .then(() => setEditing(null))
                             }
                             disabled={upd.isPending}
                           >
@@ -208,15 +263,18 @@ export default function Clientes() {
       )}
 
       {/* Modal "Nuevo" */}
-      <ClienteFormModal open={openNew} onClose={()=>setOpenNew(false)} />
+      <ClienteFormModal open={openNew} onClose={() => setOpenNew(false)} />
 
-      {/* Modal confirmación */}
+      {/* Confirmación */}
       <ConfirmDialog
         open={confirmOpen}
         title="Eliminar cliente"
         message="¿Estás seguro de eliminar este cliente? Esta acción no se puede deshacer."
         confirmLabel="Eliminar"
-        onCancel={() => { setConfirmOpen(false); setToDeleteId(null); }}
+        onCancel={() => {
+          setConfirmOpen(false);
+          setToDeleteId(null);
+        }}
         onConfirm={() => {
           if (toDeleteId != null) del.mutate(toDeleteId);
           setConfirmOpen(false);

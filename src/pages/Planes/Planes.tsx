@@ -6,46 +6,58 @@ import PlanFormModal from './PlanFormModal';
 import PricingTable from './PricingTable';
 import BenefitsStrip from './BenefitsStrip';
 
+type PlanLite = { id: number; nombre: string; precio: number; vigenciaDias: number };
+
+/** Convierte cualquier forma común de respuesta a un arreglo. */
+function asArray<T = any>(x: any): T[] {
+  if (Array.isArray(x)) return x as T[];
+  if (x?.items && Array.isArray(x.items)) return x.items as T[];
+  if (x?.data && Array.isArray(x.data)) return x.data as T[];
+  return [];
+}
+
 export default function Planes() {
   const { data, isLoading, isError } = usePlanes();
   const { isAdmin } = useAuth();
   const [openNew, setOpenNew] = useState(false);
 
-  // Normalizamos planes y elegimos 3 para la comparativa (o menos si la API trae menos)
-  const planes = useMemo(() => (data ?? []).slice(0, 3), [data]);
+  // Normaliza la respuesta y toma hasta 3 planes para la comparativa
+  const planes: PlanLite[] = useMemo(() => asArray<PlanLite>(data).slice(0, 3), [data]);
+  const cols = planes.length;
 
-  // Matriz de features (UI mock). La longitud de cada arreglo debe coincidir con planes.length
+  // Matriz de features (UI mock). Longitudes deben coincidir con planes.length
   const features = useMemo(() => {
-    const len = planes.length || 3;
-    const yes = Array(len).fill(true);
+    if (cols === 0) return {} as Record<string, boolean[]>;
+    const yes = Array(cols).fill(true);
 
-    const accesoMulticlub = planes.map((_p, i) => i !== len - 1); // último sin multiclub (a modo demo)
+    const accesoMulticlub = planes.map((_p, i) => i !== cols - 1); // demo: último sin multiclub
     const evaluacion = yes;
     const programa = yes;
     const clubBeneficios = yes;
-    const clases = planes.map((_p, i) => i !== len - 1);
+    const clases = planes.map((_p, i) => i !== cols - 1);
     const areas = yes;
 
     return {
       'Acceso Multiclub': accesoMulticlub,
-      'Duración del plan': yes, // se calcula en render usando vigenciaDias
+      'Duración del plan': yes, // calculado en render por vigenciaDias
       'Forma de pago': yes,     // texto dinámico en render (anual vs mensual)
       'Evaluación composición corporal': evaluacion,
       'Programa de entrenamiento': programa,
       'Club de beneficios': clubBeneficios,
       'Clases grupales': clases,
       'Áreas gimnasio': areas,
-    };
-  }, [planes]);
+    } as Record<string, boolean[]>;
+  }, [cols, planes]);
 
   // Notas bajo el precio (opcional)
   const priceNotes = useMemo(() => {
+    if (cols === 0) return [] as string[];
     return planes.map((p) =>
       p.vigenciaDias >= 365
         ? `Pago único anual de $${p.precio.toLocaleString('es-CL')}`
         : '2 meses adelantados'
     );
-  }, [planes]);
+  }, [cols, planes]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -63,7 +75,7 @@ export default function Planes() {
       </div>
 
       {/* Tabla comparativa tipo SmartFit */}
-      {planes.length > 0 ? (
+      {cols > 0 ? (
         <PricingTable
           plans={planes}
           highlightIndex={1}
