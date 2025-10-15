@@ -5,8 +5,10 @@ import Footer from './Footer';
 
 export default function Layout() {
   const loc = useLocation();
-  const { user, logout } = useAuth();
+  const { user, isAdmin, logout } = useAuth();
   const [open, setOpen] = useState(false);
+
+  const rolesText = (user?.roles ?? []).join(', '); // <- seguro
 
   const Item = ({ to, label }: { to: string; label: string }) => {
     const active = loc.pathname === to;
@@ -37,20 +39,32 @@ export default function Layout() {
             {/* Desktop nav */}
             <nav className="hidden md:flex items-center gap-1">
               <Item to="/" label="Inicio" />
-              <Item to="/clientes" label="Clientes" />
+              {/* Público */}
               <Item to="/planes" label="Planes" />
-              <Item to="/suscripciones" label="Suscripciones" />
-              {user?.roles?.includes?.('admin') && <Item to="/admin" label="Admin" />}
+              <Item to="/ubicacion" label="Ubicación" />
+              {/* Admin-only */}
+              {isAdmin && (
+                <>
+                  <Item to="/clientes" label="Clientes" />
+                  <Item to="/suscripciones" label="Suscripciones" />
+                  <Item to="/admin" label="Admin" />
+                </>
+              )}
             </nav>
 
-            {/* User / acciones */}
+            {/* User */}
             <div className="ml-auto hidden md:flex items-center gap-2">
-              {user && (
-                <span className="text-sm text-[var(--muted)]">
-                  {user.email} ({user.roles.join(', ')})
-                </span>
+              {user ? (
+                <>
+                  <span className="text-sm text-[var(--muted)]">
+                    {user.email}
+                    {(user.roles && user.roles.length > 0) ? ` (${rolesText})` : ''}
+                  </span>
+                  <button className="btn-ghost" onClick={logout}>Salir</button>
+                </>
+              ) : (
+                <span className="text-sm text-[var(--muted)]">Invitado</span>
               )}
-              <button className="btn-ghost" onClick={logout}>Salir</button>
             </div>
 
             {/* Mobile toggle */}
@@ -69,17 +83,26 @@ export default function Layout() {
             <div id="mobile-menu" className="md:hidden pb-3">
               <div className="flex flex-col gap-1">
                 <Item to="/" label="Inicio" />
-                <Item to="/clientes" label="Clientes" />
                 <Item to="/planes" label="Planes" />
-                <Item to="/suscripciones" label="Suscripciones" />
-                {user?.roles?.includes?.('admin') && <Item to="/admin" label="Admin" />}
+                <Item to="/ubicacion" label="Ubicación" />
+                {isAdmin && (
+                  <>
+                    <Item to="/clientes" label="Clientes" />
+                    <Item to="/suscripciones" label="Suscripciones" />
+                    <Item to="/admin" label="Admin" />
+                  </>
+                )}
                 <div className="pt-2">
-                  {user && (
-                    <div className="text-xs text-[var(--muted)] mb-2">
-                      {user.email} ({user.roles.join(', ')})
-                    </div>
+                  {user ? (
+                    <>
+                      <div className="text-xs text-[var(--muted)] mb-2">
+                        {user.email}{(user.roles && user.roles.length > 0) ? ` (${rolesText})` : ''}
+                      </div>
+                      <button className="btn-ghost w-full text-left" onClick={logout}>Salir</button>
+                    </>
+                  ) : (
+                    <span className="text-xs text-[var(--muted)]">Invitado</span>
                   )}
-                  <button className="btn-ghost w-full text-left" onClick={logout}>Salir</button>
                 </div>
               </div>
             </div>

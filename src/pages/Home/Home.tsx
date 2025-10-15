@@ -1,54 +1,122 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { useAuth } from '../../auth/AuthContext';
+import { useNavigate, useLocation } from 'react-router-dom';
+import api from '../../api/axios';
+import Carousel from '../../components/Carousel';
+import SignUpModal from '../Auth/SignUpModal';
 
 export default function Home() {
+  const { login } = useAuth();
+  const nav = useNavigate();
+  const loc = useLocation() as any;
+
+  // Autocompletado de demo (puedes dejarlos vacíos si prefieres)
+  const [email, setEmail] = useState('admin@gym.com');
+  const [password, setPassword] = useState('admin123');
+  const [loading, setLoading] = useState(false);
+  const [openSign, setOpenSign] = useState(false);
+
+  const from = loc.state?.from?.pathname as string | undefined;
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      const { data } = await api.post('/auth/login', { email, password });
+      await login(data);
+      nav(from || '/planes', { replace: true });
+    } catch {
+      alert('Credenciales inválidas');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      {/* HERO */}
+    <div className="space-y-8">
+      {/* Carrusel de promos/noticias */}
       <section className="card p-0 overflow-hidden">
-        <div className="hero-bg">
-          <div className="px-6 py-10 md:px-10 md:py-14 grid md:grid-cols-2 gap-6 items-center">
+        <Carousel
+          slides={[
+            {
+              img: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=1600&auto=format&fit=crop',
+              title: '¡Mes de la fuerza!',
+              caption: 'Inscripción con 50% de descuento.',
+            },
+            {
+              img: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=1600&auto=format&fit=crop',
+              title: 'Clases grupales',
+              caption: 'HIIT, Cycling, Yoga y más — ¡pruébalas!',
+            },
+            {
+              img: 'https://images.unsplash.com/photo-1558611848-73f7eb4001a1?q=80&w=1600&auto=format&fit=crop',
+              title: 'Entrena sin límites',
+              caption: 'Acceso ampliado en horario extendido.',
+            },
+          ]}
+          intervalMs={4500}
+        />
+      </section>
+
+      {/* Login + CTA crear cuenta */}
+      <section className="grid md:grid-cols-2 gap-6">
+        <div className="card p-6">
+          <h1 className="text-2xl font-extrabold text-neutral-900">Ingresa a BodyForge</h1>
+          <p className="text-sm text-neutral-700 mb-4">
+            Accede a tus planes y beneficios.
+          </p>
+
+          <form onSubmit={onSubmit} className="space-y-3">
             <div>
-              <span className="inline-flex items-center rounded-full bg-forge-100 text-forge-700 px-3 py-1 text-xs font-semibold ring-1 ring-forge-200">
-                Nuevo • Panel BodyForge
-              </span>
-              <h1 className="mt-3 text-3xl md:text-4xl font-extrabold tracking-tight text-neutral-900">
-                Forja tu mejor versión con <span className="text-forge-700">BodyForge</span>
-              </h1>
-              <p className="mt-2 text-neutral-700">
-                Administra clientes, planes y suscripciones con un panel rápido, claro y centrado en resultados.
-              </p>
-              <div className="mt-5 flex flex-wrap gap-3">
-                <Link to="/clientes" className="btn">Gestionar clientes</Link>
-                <Link to="/planes" className="btn-ghost">Ver planes</Link>
-              </div>
+              <label className="text-sm font-medium">Correo</label>
+              <input
+                className="input mt-1"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="tu@email.com"
+                required
+              />
             </div>
-            <div className="hidden md:block">
-              <div className="aspect-[4/3] rounded-2xl bg-[rgba(255,127,14,0.12)] border border-[rgba(255,127,14,0.35)] flex items-center justify-center">
-                <div className="text-forge-700 font-semibold">Dashboard BodyForge</div>
-              </div>
+            <div>
+              <label className="text-sm font-medium">Contraseña</label>
+              <input
+                className="input mt-1"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+              />
             </div>
+
+            <button className="btn w-full" disabled={loading}>
+              {loading ? 'Ingresando…' : 'Ingresar'}
+            </button>
+          </form>
+
+          <div className="mt-3 text-sm text-neutral-700">
+            ¿Aún no tienes cuenta?{' '}
+            <button
+              className="text-forge-700 underline underline-offset-2"
+              onClick={() => setOpenSign(true)}
+            >
+              Crea una cuenta
+            </button>
           </div>
+        </div>
+
+        <div className="card p-6 bg-forge-50 border-forge-200">
+          <h2 className="text-xl font-semibold text-forge-800">Beneficios BodyForge</h2>
+          <ul className="mt-2 text-neutral-700 list-disc pl-5 space-y-2">
+            <li>Clases grupales incluidas en planes seleccionados.</li>
+            <li>Evaluación y plan de entrenamiento.</li>
+            <li>Convenios con empresas y descuentos.</li>
+          </ul>
         </div>
       </section>
 
-      {/* Accesos rápidos */}
-      <section className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
-        <Link to="/clientes" className="card p-5 hover:shadow-lg transition">
-          <div className="text-sm text-[var(--muted)]">Acceso rápido</div>
-          <div className="mt-2 font-semibold">Clientes</div>
-          <p className="text-sm text-neutral-700">Crea, edita y gestiona tus clientes.</p>
-        </Link>
-        <Link to="/planes" className="card p-5 hover:shadow-lg transition">
-          <div className="text-sm text-[var(--muted)]">Acceso rápido</div>
-          <div className="mt-2 font-semibold">Planes</div>
-          <p className="text-sm text-neutral-700">Define precios y vigencias a tu medida.</p>
-        </Link>
-        <Link to="/suscripciones" className="card p-5 hover:shadow-lg transition">
-          <div className="text-sm text-[var(--muted)]">Acceso rápido</div>
-          <div className="mt-2 font-semibold">Suscripciones</div>
-          <p className="text-sm text-neutral-700">Control en tiempo real del estado.</p>
-        </Link>
-      </section>
+      <SignUpModal open={openSign} onClose={() => setOpenSign(false)} />
     </div>
   );
 }
