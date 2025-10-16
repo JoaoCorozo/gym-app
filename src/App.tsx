@@ -6,6 +6,7 @@ import Clientes from './pages/Clientes/Clientes';
 import Suscripciones from './pages/Suscripciones/Suscripciones';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import Ubicacion from './pages/Ubicacion/Ubicacion';
+import Clases from './pages/Clases/Clases';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 
 export default function App() {
@@ -16,11 +17,10 @@ export default function App() {
           <Route index element={<Home />} />
           <Route path="planes" element={<Planes />} />
           <Route path="ubicacion" element={<Ubicacion />} />
-
+          <Route path="clases" element={<ProtectedRoute><Clases /></ProtectedRoute>} />
           <Route path="clientes" element={<ProtectedRoute roles={['admin']}><Clientes /></ProtectedRoute>} />
           <Route path="suscripciones" element={<ProtectedRoute roles={['admin']}><Suscripciones /></ProtectedRoute>} />
           <Route path="admin" element={<ProtectedRoute roles={['admin']}><AdminDashboard /></ProtectedRoute>} />
-
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

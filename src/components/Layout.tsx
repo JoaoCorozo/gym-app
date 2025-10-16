@@ -7,7 +7,6 @@ export default function Layout() {
   const loc = useLocation();
   const { user, isAdmin, logout } = useAuth();
   const [open, setOpen] = useState(false);
-
   const rolesText = (user?.roles ?? []).join(', ');
 
   const Item = ({ to, label }: { to: string; label: string }) => {
@@ -32,11 +31,12 @@ export default function Layout() {
               <img src="/bodyforge.svg" alt="BodyForge" className="h-7 w-7" />
               <div className="font-extrabold text-lg text-forge-600">BodyForge</div>
             </div>
-
             <nav className="hidden md:flex items-center gap-1">
               <Item to="/" label="Inicio" />
               <Item to="/planes" label="Planes" />
               <Item to="/ubicacion" label="Ubicación" />
+              {/* ← aquí cambia la regla */}
+              {user && <Item to="/clases" label="Clases" />}
               {isAdmin && (
                 <>
                   <Item to="/clientes" label="Clientes" />
@@ -45,7 +45,6 @@ export default function Layout() {
                 </>
               )}
             </nav>
-
             <div className="ml-auto hidden md:flex items-center gap-2">
               {user ? (
                 <>
@@ -58,18 +57,17 @@ export default function Layout() {
                 <span className="text-sm text-[var(--muted)]">Invitado</span>
               )}
             </div>
-
-            <button className="ml-auto md:hidden btn-outline" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-controls="mobile-menu">
+            <button className="ml-auto md:hidden btn-outline" onClick={() => setOpen(v => !v)}>
               {open ? 'Cerrar' : 'Menú'}
             </button>
           </div>
-
           {open && (
-            <div id="mobile-menu" className="md:hidden pb-3">
+            <div className="md:hidden pb-3">
               <div className="flex flex-col gap-1">
                 <Item to="/" label="Inicio" />
                 <Item to="/planes" label="Planes" />
                 <Item to="/ubicacion" label="Ubicación" />
+                {user && <Item to="/clases" label="Clases" />}
                 {isAdmin && (
                   <>
                     <Item to="/clientes" label="Clientes" />
@@ -94,11 +92,9 @@ export default function Layout() {
           )}
         </div>
       </header>
-
       <main className="mx-auto max-w-6xl px-4 py-6 flex-1 w-full">
         <Outlet />
       </main>
-
       <Footer />
     </div>
   );
