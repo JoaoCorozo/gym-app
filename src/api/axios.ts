@@ -1,11 +1,9 @@
 import axios from 'axios';
 
 const instance = axios.create({
-  // Same-origin; MSW intercepta /auth, /clientes, /planes, etc.
-  baseURL: '',
+  baseURL: '', // same-origin para MSW
 });
 
-// Adjunta el token a todo request si existe
 const K_ACCESS = 'bf_access';
 
 instance.interceptors.request.use((config) => {
