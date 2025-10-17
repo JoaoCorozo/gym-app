@@ -1,10 +1,13 @@
 import { authHandlers } from './auth';
 import { planesHandlers } from './planes';
 import { clasesHandlers } from './clases';
+import { adminHandlers } from './admin';
+import { pagosHandlers } from './pagos';
 
-// 👇 Este array es el que realmente consume el worker
 export const handlers = [
   ...authHandlers,
   ...planesHandlers,
   ...clasesHandlers,
+  ...adminHandlers,
+  ...pagosHandlers, // 👈 pagos
 ];

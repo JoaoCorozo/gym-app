@@ -19,7 +19,7 @@ export default function AdminDashboard() {
           <div className="text-lg font-semibold text-forge-800">Suscripciones</div>
           <div className="text-neutral-600">Gestiona membresías y renovaciones.</div>
         </Link>
-        <Link to="/planes" className="card p-6 hover:shadow-md transition">
+        <Link to="/admin/planes" className="card p-6 hover:shadow-md transition">
           <div className="text-lg font-semibold text-forge-800">Planes</div>
           <div className="text-neutral-600">Consulta y administra planes.</div>
         </Link>

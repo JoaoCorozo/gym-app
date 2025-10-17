@@ -1,286 +1,199 @@
-import { useMemo, useState } from 'react';
-import { useClientes, useDeleteCliente, useUpdateCliente } from './useClientes';
-import { useAuth } from '../../auth/AuthContext';
-import Spinner from '../../components/Spinner';
-import Badge from '../../components/Badge';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../api/axios';
-import type { Suscripcion, Cliente } from '../../types/models';
-import { estadoMembresiaDeCliente, resumenKPI } from '../../selectors/membership';
-import SearchBar from '../../components/SearchBar';
-import type { EstadoFiltro } from '../../components/SearchBar';
-import ConfirmDialog from '../../components/ConfirmDialog';
-import StatsBar from '../../components/StatsBar';
-import ClienteFormModal from './ClienteFormModal';
+import { getJSON, setJSON } from '../../utils/persist';
 
-/** Normaliza cualquier forma de respuesta a array */
-function asArray<T = any>(x: any): T[] {
-  if (Array.isArray(x)) return x as T[];
-  if (x?.items && Array.isArray(x.items)) return x.items as T[];
-  if (x?.data && Array.isArray(x.data)) return x.data as T[];
-  return [];
-}
-
-type EditRow = {
+type Cliente = {
   id: number;
   nombre: string;
-  correo: string;
-  telefono?: string;
-  estadoMembresia: string;
+  email: string;
+  telefono: string;
 };
 
-export default function Clientes() {
-  // 🪝 TODOS los hooks se declaran SIEMPRE y en el mismo orden.
-  const { data, isLoading, isError } = useClientes();
-  const del = useDeleteCliente();
-  const upd = useUpdateCliente();
-  const { isAdmin } = useAuth();
+function asArray<T = any>(x: any): T[] {
+  if (Array.isArray(x)) return x;
+  if (x?.items && Array.isArray(x.items)) return x.items;
+  if (x?.data && Array.isArray(x.data)) return x.data;
+  return [];
+}
+function looksLikeHTML(x: any) {
+  return typeof x === 'string' && x.startsWith('<!doctype html');
+}
 
-  const subsQ = useQuery({
-    queryKey: ['suscripciones'],
-    queryFn: async () =>
-      (await api.get<Suscripcion[] | { items: Suscripcion[] } | { data: Suscripcion[] }>(
-        '/suscripciones'
-      )).data,
+const LS_KEY = 'admin_clientes';
+const LS_SEQ = 'admin_seq_clientes';
+
+export default function Clientes() {
+  const qc = useQueryClient();
+
+  // Estado local + persistencia
+  const [localClientes, setLocalClientes] = useState<Cliente[]>(
+    getJSON<Cliente[]>(LS_KEY, [
+      { id: 1, nombre: 'Juan Pérez', email: 'juan@gym.cl', telefono: '987654321' },
+      { id: 2, nombre: 'María López', email: 'maria@gym.cl', telefono: '912345678' },
+    ])
+  );
+  const [seq, setSeq] = useState<number>(getJSON<number>(LS_SEQ, Math.max(3, (localClientes.at(-1)?.id ?? 0) + 1)));
+
+  // Carga remota (si existiera API)
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['clientes'],
+    queryFn: async () => (await api.get('/clientes')).data,
+    retry: 0,
   });
 
-  const [editing, setEditing] = useState<EditRow | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [toDeleteId, setToDeleteId] = useState<number | null>(null);
+  const inMockMode = useMemo(() => isError || looksLikeHTML(data), [isError, data]);
 
-  const [q, setQ] = useState('');
-  const [estado, setEstado] = useState<EstadoFiltro>('todos');
-
-  const [openNew, setOpenNew] = useState(false);
-
-  // 🔒 Datos normalizados SIEMPRE (evita excepciones en mitad del render).
-  const clientes = useMemo<Cliente[]>(() => asArray<Cliente>(data), [data]);
-  const suscripciones = useMemo<Suscripcion[]>(
-    () => asArray<Suscripcion>(subsQ.data),
-    [subsQ.data]
-  );
-
-  // KPIs y enriquecimiento siempre calculados vía useMemo (sin lanzar).
-  const kpi = useMemo(() => resumenKPI(clientes, suscripciones), [clientes, suscripciones]);
-
-  const clientesEnriquecidos = useMemo(() => {
-    try {
-      return clientes.map((c) => {
-        const e = estadoMembresiaDeCliente(c.id, suscripciones);
-        return { ...c, _estado: e.estado, _vencimiento: e.vencimiento };
-      });
-    } catch {
-      // Ante cualquier cosa rara en datos, no romper el orden de hooks
-      return clientes.map((c) => ({ ...c, _estado: 'vencida' as const }));
+  // Persistir cada cambio local
+  useEffect(() => {
+    if (inMockMode) {
+      setJSON(LS_KEY, localClientes);
+      setJSON(LS_SEQ, seq);
     }
-  }, [clientes, suscripciones]);
+  }, [inMockMode, localClientes, seq]);
 
-  const filtrados = useMemo(() => {
-    const qnorm = q.trim().toLowerCase();
-    return clientesEnriquecidos.filter((c: any) => {
-      const matchQ =
-        qnorm.length === 0 ||
-        c.nombre?.toLowerCase?.().includes(qnorm) ||
-        c.correo?.toLowerCase?.().includes(qnorm) ||
-        (c.telefono ?? '').toLowerCase?.().includes(qnorm);
-      const matchEstado = estado === 'todos' || c._estado === estado;
-      return matchQ && matchEstado;
-    });
-  }, [clientesEnriquecidos, q, estado]);
+  const crear = useMutation({
+    mutationFn: async (payload: Omit<Cliente, 'id'>) => (await api.post('/clientes', payload)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['clientes'] }),
+  });
 
-  // 🧪 Loading / Error se devuelven DESPUÉS de declarar hooks
-  if (isLoading || subsQ.isLoading) {
-    return (
-      <div className="p-6">
-        <Spinner label="Cargando clientes..." />
-      </div>
-    );
-  }
-  if (isError || subsQ.isError) {
-    return <div className="p-6 text-rose-600">Error al cargar clientes</div>;
-  }
+  const actualizar = useMutation({
+    mutationFn: async (payload: Cliente) => (await api.put(`/clientes/${payload.id}`, payload)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['clientes'] }),
+  });
 
-  const isRow = (id: number) => editing?.id === id;
+  const eliminar = useMutation({
+    mutationFn: async (id: number) => (await api.delete(`/clientes/${id}`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['clientes'] }),
+  });
+
+  // UI state
+  const [open, setOpen] = useState(false);
+  const [edit, setEdit] = useState<Cliente | null>(null);
+  const [form, setForm] = useState<Omit<Cliente, 'id'>>({ nombre: '', email: '', telefono: '' });
+
+  const onNew = () => {
+    setEdit(null);
+    setForm({ nombre: '', email: '', telefono: '' });
+    setOpen(true);
+  };
+
+  const onEdit = (c: Cliente) => {
+    setEdit(c);
+    setForm({ nombre: c.nombre, email: c.email, telefono: c.telefono });
+    setOpen(true);
+  };
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inMockMode) {
+      if (edit) {
+        setLocalClientes(arr => arr.map(c => c.id === edit.id ? { ...edit, ...form } : c));
+      } else {
+        setLocalClientes(arr => [...arr, { ...form, id: seq }]);
+        setSeq(n => n + 1);
+      }
+      setOpen(false);
+      return;
+    }
+    if (edit) await actualizar.mutateAsync({ ...edit, ...form });
+    else await crear.mutateAsync(form);
+    setOpen(false);
+  };
+
+  const onDelete = async (id: number) => {
+    if (inMockMode) {
+      setLocalClientes(arr => arr.filter(c => c.id !== id));
+      return;
+    }
+    await eliminar.mutateAsync(id);
+  };
+
+  const clientes: Cliente[] = inMockMode ? localClientes : asArray<Cliente>(data);
+
+  if (isLoading) return <div className="p-6">Cargando clientes…</div>;
 
   return (
-    <div className="space-y-4">
-      {/* Título + acciones */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Clientes</h1>
-        {isAdmin && (
-          <button className="btn" onClick={() => setOpenNew(true)}>
-            Nuevo
-          </button>
-        )}
-      </div>
-
-      {/* KPIs */}
-      <StatsBar
-        items={[
-          { label: 'Total', value: kpi.total },
-          { label: 'Activos', value: kpi.activas },
-          { label: 'Por vencer', value: kpi.porVencer },
-          { label: 'Vencidos', value: kpi.vencidas },
-          { label: '% Activos', value: `${kpi.activosPct}%` },
-        ]}
-      />
-
-      {/* Búsqueda + filtro */}
-      <SearchBar
-        q={q}
-        onQ={setQ}
-        estado={estado}
-        onEstado={setEstado}
-        placeholder="Buscar por nombre, correo o teléfono…"
-      />
-
-      {/* Tabla */}
-      {filtrados.length === 0 ? (
-        <div className="card p-6 text-neutral-600">No hay resultados con los filtros actuales.</div>
-      ) : (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th className="w-14">ID</th>
-                <th>Nombre</th>
-                <th>Correo</th>
-                <th>Teléfono</th>
-                <th>Estado</th>
-                {isAdmin && <th className="w-44">Acciones</th>}
-              </tr>
-            </thead>
-            <tbody className="[&>tr:nth-child(odd)]:bg-neutral-50 [&>tr:hover]:bg-forge-50/60">
-              {filtrados.map((c: any) => (
-                <tr key={c.id}>
-                  <td>{c.id}</td>
-
-                  <td>
-                    {isRow(c.id) ? (
-                      <input
-                        className="input"
-                        value={editing!.nombre}
-                        onChange={(ev) => setEditing({ ...editing!, nombre: ev.target.value })}
-                      />
-                    ) : (
-                      c.nombre
-                    )}
-                  </td>
-
-                  <td>
-                    {isRow(c.id) ? (
-                      <input
-                        className="input"
-                        value={editing!.correo}
-                        onChange={(ev) => setEditing({ ...editing!, correo: ev.target.value })}
-                      />
-                    ) : (
-                      c.correo
-                    )}
-                  </td>
-
-                  <td>
-                    {isRow(c.id) ? (
-                      <input
-                        className="input"
-                        value={editing!.telefono ?? ''}
-                        onChange={(ev) => setEditing({ ...editing!, telefono: ev.target.value })}
-                      />
-                    ) : (
-                      c.telefono ?? '-'
-                    )}
-                  </td>
-
-                  <td>
-                    <Badge kind={(c._estado as any) ?? 'default'}>
-                      {(c._estado as string)?.replace?.('_', ' ')}
-                    </Badge>
-                    {c._vencimiento && (
-                      <span className="ml-2 text-xs text-neutral-500">({c._vencimiento})</span>
-                    )}
-                  </td>
-
-                  {isAdmin && (
-                    <td className="whitespace-nowrap">
-                      {isRow(c.id) ? (
-                        <>
-                          <button
-                            className="btn"
-                            onClick={() =>
-                              upd
-                                .mutateAsync({
-                                  id: editing!.id,
-                                  nombre: editing!.nombre,
-                                  correo: editing!.correo,
-                                  telefono: editing!.telefono,
-                                  estadoMembresia: editing!.estadoMembresia as any,
-                                })
-                                .then(() => setEditing(null))
-                            }
-                            disabled={upd.isPending}
-                          >
-                            Guardar
-                          </button>
-                          <button className="btn-ghost ml-2" onClick={() => setEditing(null)}>
-                            Cancelar
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            className="btn"
-                            onClick={() =>
-                              setEditing({
-                                id: c.id,
-                                nombre: c.nombre,
-                                correo: c.correo,
-                                telefono: c.telefono,
-                                estadoMembresia: c.estadoMembresia,
-                              })
-                            }
-                          >
-                            Editar
-                          </button>
-                          <button
-                            className="btn-ghost ml-2"
-                            onClick={() => {
-                              setToDeleteId(c.id);
-                              setConfirmOpen(true);
-                            }}
-                            disabled={del.isPending}
-                          >
-                            Eliminar
-                          </button>
-                        </>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <div className="space-y-6">
+      {inMockMode && (
+        <div className="p-3 rounded-xl2 bg-amber-50 border border-amber-200 text-amber-800">
+          Modo local con persistencia: datos guardados en este navegador.
         </div>
       )}
 
-      {/* Modal "Nuevo" */}
-      <ClienteFormModal open={openNew} onClose={() => setOpenNew(false)} />
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Clientes</h1>
+        <button className="btn" onClick={onNew}>Nuevo cliente</button>
+      </div>
 
-      {/* Confirmación */}
-      <ConfirmDialog
-        open={confirmOpen}
-        title="Eliminar cliente"
-        message="¿Estás seguro de eliminar este cliente? Esta acción no se puede deshacer."
-        confirmLabel="Eliminar"
-        onCancel={() => {
-          setConfirmOpen(false);
-          setToDeleteId(null);
-        }}
-        onConfirm={() => {
-          if (toDeleteId != null) del.mutate(toDeleteId);
-          setConfirmOpen(false);
-          setToDeleteId(null);
-        }}
-      />
+      <div className="overflow-x-auto rounded-xl2 border border-neutral-200 bg-white">
+        <table className="min-w-full text-sm">
+          <thead className="bg-neutral-50 border-b border-neutral-200">
+            <tr>
+              <th className="text-left px-4 py-3 font-semibold text-neutral-700">ID</th>
+              <th className="text-left px-4 py-3 font-semibold text-neutral-700">Nombre</th>
+              <th className="text-left px-4 py-3 font-semibold text-neutral-700">Email</th>
+              <th className="text-left px-4 py-3 font-semibold text-neutral-700">Teléfono</th>
+              <th className="text-right px-4 py-3 font-semibold text-neutral-700">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {clientes.map((c) => (
+              <tr key={c.id} className="border-b last:border-b-0">
+                <td className="px-4 py-3">{c.id}</td>
+                <td className="px-4 py-3">{c.nombre}</td>
+                <td className="px-4 py-3">{c.email}</td>
+                <td className="px-4 py-3">{c.telefono}</td>
+                <td className="px-4 py-3 text-right space-x-2">
+                  <button className="btn-ghost" onClick={() => onEdit(c)}>Editar</button>
+                  <button
+                    className="btn-outline text-rose-700 border-rose-300 hover:bg-rose-50"
+                    onClick={() => onDelete(c.id)}
+                  >
+                    Eliminar
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {clientes.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-center text-neutral-500">No hay clientes aún.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modal */}
+      {open && (
+        <div className="fixed inset-0 bg-black/40 z-20 flex items-center justify-center">
+          <div className="w-full max-w-md bg-white rounded-2xl p-6 shadow-xl">
+            <h2 className="text-xl font-semibold mb-4">{edit ? 'Editar cliente' : 'Nuevo cliente'}</h2>
+            <form className="space-y-3" onSubmit={onSubmit}>
+              <div>
+                <label className="text-sm font-medium">Nombre</label>
+                <input className="input mt-1" value={form.nombre}
+                  onChange={(e) => setForm(f => ({ ...f, nombre: e.target.value }))} required />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Email</label>
+                <input type="email" className="input mt-1" value={form.email}
+                  onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} required />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Teléfono</label>
+                <input className="input mt-1" value={form.telefono}
+                  onChange={(e) => setForm(f => ({ ...f, telefono: e.target.value }))} />
+              </div>
+
+              <div className="pt-3 flex items-center justify-end gap-2">
+                <button type="button" className="btn-ghost" onClick={() => setOpen(false)}>Cancelar</button>
+                <button className="btn" type="submit">{edit ? 'Guardar' : 'Crear'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

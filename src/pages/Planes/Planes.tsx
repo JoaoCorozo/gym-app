@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import api from '../../api/axios';
+import { Link } from 'react-router-dom';
 
 type Plan = {
   id: number;
@@ -32,7 +33,6 @@ export default function Planes() {
     retry: 1,
   });
 
-  // normalización + fallback
   let planes: Plan[] = [];
   if (!isLoading && !isError) {
     if (looksLikeHTML(data)) {
@@ -69,9 +69,9 @@ export default function Planes() {
               <div className="text-sm text-neutral-500 mb-6">
                 {plan.duracionDias} días de acceso ilimitado
               </div>
-              <button className="btn w-full py-3 font-semibold bg-forge-600 hover:bg-forge-700 text-white rounded-xl transition">
+              <Link to={`/pagar/${plan.id}`} className="btn w-full py-3 font-semibold bg-forge-600 hover:bg-forge-700 text-white rounded-xl transition text-center">
                 Elegir plan
-              </button>
+              </Link>
             </div>
           </div>
         ))}
