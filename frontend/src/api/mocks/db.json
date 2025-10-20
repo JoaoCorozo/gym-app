@@ -1,0 +1,52 @@
+{
+  "clientes": [
+    {
+      "id": "0a4c",
+      "nombre": "Joao Corozo",
+      "correo": "joao.corozo@gmail.com",
+      "telefono": "949119070",
+      "planId": 1,
+      "estadoMembresia": "vencida",
+      "fechaInscripcion": "2025-10-09"
+    }
+  ],
+  "planes": [
+    {
+      "id": "1",
+      "nombre": "Mensual",
+      "precio": 20000,
+      "vigenciaDias": 30
+    },
+    {
+      "id": "2",
+      "nombre": "Trimestral",
+      "precio": 55000,
+      "vigenciaDias": 90
+    },
+    {
+      "id": "5098",
+      "nombre": "Anual",
+      "precio": 120000,
+      "vigenciaDias": 365
+    }
+  ],
+  "suscripciones": [
+    {
+      "id": "dba9",
+      "clienteId": 1,
+      "planId": 1,
+      "fechaInicio": "2025-10-09",
+      "fechaVencimiento": "2025-11-08"
+    },
+    {
+      "id": "99a9",
+      "clienteId": 5,
+      "planId": 5098,
+      "fechaInicio": "2025-10-09",
+      "fechaVencimiento": "2025-11-08"
+    }
+  ],
+  "pagos": [],
+  "asistencias": [],
+  "rutinas": []
+}
