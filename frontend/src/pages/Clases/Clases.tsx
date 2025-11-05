@@ -1,136 +1,290 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '../../api/axios';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext';
+import { getJSON, setJSON } from '../../utils/persist';
 
 type Clase = {
   id: string;
-  desde: string;
-  hasta: string;
-  entrenadores: string[];
-  inscritos: { id: number; nombre: string }[];
-  cupo: number;
+  nombre: string;
+  entrenador: string;
+  inicio: string;
+  fin: string;
+  capacidad?: number;
 };
 
-function asArray<T = any>(x: any): T[] {
-  if (Array.isArray(x)) return x;
-  if (x?.items && Array.isArray(x.items)) return x.items;
-  if (x?.data && Array.isArray(x.data)) return x.data;
-  return [];
+type Inscripcion = {
+  claseId: string;
+  userId: string;
+  nombre: string;
+  fecha: string; // yyyy-mm-dd
+};
+
+const LS_KEY = 'clases_inscripciones_v1';
+
+type BloqueHora = { inicio: number; fin: number };
+
+const BLOQUES: BloqueHora[] = [
+  { inicio: 8, fin: 10 },
+  { inicio: 10, fin: 12 },
+  { inicio: 12, fin: 14 },
+  { inicio: 14, fin: 16 },
+  { inicio: 16, fin: 18 },
+  { inicio: 18, fin: 20 },
+  { inicio: 20, fin: 22 },
+];
+
+const ENTRENADORES = [
+  'Carlos Díaz',
+  'Ana Torres',
+  'Luis Romero',
+  'María González',
+];
+
+function generarClasesDelDia(): Clase[] {
+  const hoy = new Date();
+  return BLOQUES.map((b, idx) => {
+    const inicio = new Date(hoy);
+    inicio.setHours(b.inicio, 0, 0, 0);
+    const fin = new Date(hoy);
+    fin.setHours(b.fin, 0, 0, 0);
+
+    const entrenador = ENTRENADORES[idx % ENTRENADORES.length];
+
+    return {
+      id: `funcional-${b.inicio}-${b.fin}`,
+      nombre: 'Entrenamiento Funcional',
+      entrenador,
+      inicio: inicio.toISOString(),
+      fin: fin.toISOString(),
+      capacidad: 20,
+    };
+  });
 }
-function looksLikeHTML(x: any) {
-  return typeof x === 'string' && x.startsWith('<!doctype html');
-}
 
-// Fallback local (08–10, 09–11, …, 21–23)
-function generarFranjasLocal(): Clase[] {
-  const base = new Date();
-  const dia = base.toISOString().slice(0, 10);
-  const franjas: Clase[] = [];
-  for (let h = 8; h <= 21; h++) {
-    const desdeH = String(h).padStart(2, '0');
-    const hastaH = String(h + 2).padStart(2, '0'); // última 21–23
-    const desde = `${desdeH}:00`;
-    const hasta = `${hastaH}:00`;
-    const id = `${dia}_${desdeH}-00-${hastaH}-00`;
-
-    const entrenadores =
-      (h % 3 === 0) ? ['Cata P.', 'Rodrigo M.']
-      : (h % 3 === 1) ? ['Javiera L.']
-      : ['Marcelo V.', 'Antonia R.'];
-
-    franjas.push({ id, desde, hasta, entrenadores, inscritos: [], cupo: 20 });
-  }
-  return franjas;
+function parseDate(value: string) {
+  return new Date(value);
 }
 
 export default function Clases() {
-  const qc = useQueryClient();
   const { user } = useAuth();
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['clases'],
-    queryFn: async () => (await api.get('/clases')).data,
-    retry: 1,
-  });
-
-  const inscribir = useMutation({
-    mutationFn: async (id: string) => {
-      const nombre = user?.email.split('@')[0] || 'Usuario';
-      const userId = user?.id || 0;
-      await api.post(`/clases/${id}/inscribir`, { userId, nombre });
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['clases'] }),
-  });
-
-  // Normalización + fallback
-  let clases: Clase[] = [];
-  if (!isLoading && !isError) {
-    if (looksLikeHTML(data)) {
-      clases = generarFranjasLocal();
-    } else {
-      const arr = asArray<Clase>(data);
-      clases = arr.length ? arr : generarFranjasLocal();
-    }
-  }
-
-  if (isLoading) return <div className="p-6">Cargando horarios…</div>;
-  if (isError)   return (
-    <div className="space-y-4">
-      <div className="p-6 text-rose-700 bg-rose-50 border border-rose-200 rounded-xl2">
-        No se pudo cargar desde la API. Mostrando horarios locales.
-      </div>
-      <ListadoClases clases={generarFranjasLocal()} inscribir={inscribir} />
-    </div>
+  const clases: Clase[] = useMemo(() => generarClasesDelDia(), []);
+  const [inscripciones, setInscripciones] = useState<Inscripcion[]>(
+    () => getJSON<Inscripcion[]>(LS_KEY, [])
   );
 
-  if (clases.length === 0) {
-    return <div className="card p-6">No hay horarios publicados hoy.</div>;
-  }
+  useEffect(() => {
+    setJSON(LS_KEY, inscripciones);
+  }, [inscripciones]);
 
-  return <ListadoClases clases={clases} inscribir={inscribir} />;
-}
+  const clasesConInscritos = useMemo(() => {
+    return clases.map((clase) => {
+      const capacidad = clase.capacidad ?? 20;
+      const inscritos = inscripciones.filter((i) => i.claseId === clase.id);
+      const ocupados = inscritos.length;
+      const disponibles = Math.max(capacidad - ocupados, 0);
+      return {
+        ...clase,
+        capacidad,
+        inscritos,
+        ocupados,
+        disponibles,
+      };
+    });
+  }, [clases, inscripciones]);
 
-function ListadoClases({
-  clases,
-  inscribir,
-}: {
-  clases: Clase[];
-  inscribir: ReturnType<typeof useMutation<any, any, string>>;
-}) {
+  const handleInscribir = (claseId: string, fechaClase: string) => {
+    if (!user) {
+      alert('Debes iniciar sesión para inscribirte en una clase.');
+      return;
+    }
+
+    const userId = String(
+      (user as any).id ?? (user as any).sub ?? (user as any).email
+    );
+    const nombre =
+      (user as any).nombre ??
+      (user as any).name ??
+      (user as any).email ??
+      'Cliente BodyForge';
+
+    // Regla: solo una clase por día
+    const yaInscritoHoy = inscripciones.some(
+      (i) => i.userId === userId && i.fecha === fechaClase
+    );
+    if (yaInscritoHoy) {
+      alert('Solo puedes inscribirte en una clase por día.');
+      return;
+    }
+
+    setInscripciones((prev) => {
+      const yaInscrito = prev.some(
+        (i) => i.claseId === claseId && i.userId === userId
+      );
+      if (yaInscrito) return prev;
+
+      const capacidad = 20;
+      const ocupados = prev.filter((i) => i.claseId === claseId).length;
+      if (ocupados >= capacidad) {
+        alert('No quedan cupos disponibles para esta clase.');
+        return prev;
+      }
+
+      return [
+        ...prev,
+        {
+          claseId,
+          userId,
+          nombre,
+          fecha: fechaClase,
+        },
+      ];
+    });
+  };
+
+  const handleCancelar = (claseId: string) => {
+    if (!user) return;
+    const userId = String(
+      (user as any).id ?? (user as any).sub ?? (user as any).email
+    );
+
+    setInscripciones((prev) =>
+      prev.filter((i) => !(i.claseId === claseId && i.userId === userId))
+    );
+  };
+
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Clases y horarios de hoy</h1>
-      <div className="grid md:grid-cols-2 gap-4">
-        {clases.map((c) => {
-          const inscritos = c.inscritos ?? [];
-          const lleno = inscritos.length >= c.cupo;
+    <div className="space-y-6">
+      <header className="text-center space-y-2">
+        <h1 className="text-3xl font-extrabold text-forge-700">
+          Clases de Entrenamiento Funcional
+        </h1>
+        <p className="text-neutral-700 max-w-2xl mx-auto">
+          Solo puedes tomar una clase por día. Cada bloque tiene 20 cupos disponibles.
+        </p>
+      </header>
+
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {clasesConInscritos.map((clase) => {
+          const inicio = parseDate(clase.inicio);
+          const fin = parseDate(clase.fin);
+          const fechaClase = inicio.toISOString().split('T')[0];
+          const hora = `${inicio.toLocaleTimeString('es-CL', {
+            hour: '2-digit',
+            minute: '2-digit',
+          })} - ${fin.toLocaleTimeString('es-CL', {
+            hour: '2-digit',
+            minute: '2-digit',
+          })}`;
+
+          const userId = user
+            ? String(
+                (user as any).id ??
+                  (user as any).sub ??
+                  (user as any).email
+              )
+            : null;
+
+          const yaInscrito =
+            !!userId &&
+            clase.inscritos.some((i) => i.userId === userId);
+
+          const lleno = clase.disponibles === 0;
+
           return (
-            <div key={c.id} className="card p-4 flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <h2 className="font-semibold">{c.desde} – {c.hasta}</h2>
-                <span className={`text-sm ${lleno ? 'text-rose-600' : 'text-forge-700'}`}>
-                  {inscritos.length}/{c.cupo} cupos
-                </span>
-              </div>
-              <div className="text-sm text-neutral-700">
-                <span className="font-medium">Preparadores físicos:</span> {c.entrenadores.join(', ')}
-              </div>
-              {inscritos.length > 0 ? (
-                <div className="text-sm text-neutral-700">
-                  <span className="font-medium">Inscritos:</span>{' '}
-                  {inscritos.map(i => i.nombre).join(', ')}
+            <div
+              key={clase.id}
+              className="card p-5 flex flex-col justify-between h-full border border-neutral-200 bg-white rounded-2xl shadow-sm"
+            >
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-wide text-forge-500 font-semibold">
+                  {hora}
                 </div>
-              ) : (
-                <div className="text-sm text-neutral-500">Sin inscritos aún.</div>
-              )}
-              <div className="pt-2">
+                <h2 className="text-lg font-bold text-neutral-900">
+                  {clase.nombre}
+                </h2>
+                <p className="text-sm text-neutral-600">
+                  Entrenador:{' '}
+                  <span className="font-medium">{clase.entrenador}</span>
+                </p>
+
+                <div className="mt-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-neutral-800">
+                      Cupos: {clase.ocupados} / {clase.capacidad}
+                    </span>
+                    <span
+                      className={
+                        'px-2 py-0.5 rounded-full text-xs font-semibold ' +
+                        (lleno
+                          ? 'bg-rose-100 text-rose-700'
+                          : clase.ocupados > 0
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-emerald-100 text-emerald-700')
+                      }
+                    >
+                      {lleno
+                        ? 'Sin cupos'
+                        : clase.ocupados === 0
+                        ? 'Disponible'
+                        : `${clase.disponibles} libres`}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1.5 w-full bg-neutral-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-forge-500"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          (clase.ocupados / clase.capacidad) * 100
+                        ).toFixed(0)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3">
                 <button
-                  className="btn"
-                  disabled={lleno || inscribir.isPending}
-                  onClick={() => inscribir.mutate(c.id)}
+                  className={
+                    'btn w-full ' +
+                    (lleno && !yaInscrito
+                      ? 'opacity-60 cursor-not-allowed'
+                      : '')
+                  }
+                  onClick={() =>
+                    yaInscrito
+                      ? handleCancelar(clase.id)
+                      : handleInscribir(clase.id, fechaClase)
+                  }
+                  disabled={lleno && !yaInscrito}
                 >
-                  {lleno ? 'Cupo lleno' : (inscribir.isPending ? 'Inscribiendo…' : 'Inscribirme')}
+                  {yaInscrito
+                    ? 'Cancelar inscripción'
+                    : 'Inscribirme en esta clase'}
                 </button>
+
+                <div className="border-t border-neutral-200 pt-3 text-sm text-neutral-700 text-left">
+                  <div className="font-semibold mb-1">
+                    Personas inscritas ({clase.inscritos.length}):
+                  </div>
+                  {clase.inscritos.length === 0 && (
+                    <div className="text-neutral-400">
+                      Aún no hay inscritos en esta clase.
+                    </div>
+                  )}
+                  {clase.inscritos.length > 0 && (
+                    <ul className="space-y-1 max-h-32 overflow-y-auto">
+                      {clase.inscritos.map((i) => (
+                        <li
+                          key={`${i.claseId}-${i.userId}`}
+                          className="flex items-center justify-between gap-2"
+                        >
+                          <span className="font-medium">{i.nombre}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
             </div>
           );
